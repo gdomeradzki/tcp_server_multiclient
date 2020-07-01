@@ -5,6 +5,27 @@
 
 int MAXIMUM_CONNECTIONS_NUMBER = 128;
 
+int handleNewConnection(int listeningSocket, int* clients)
+{
+    struct sockaddr newAddress;
+    socklen_t newAddressLen;
+    int newConnectionFd = accept(listeningSocket, &newAddress, &newAddressLen);
+    char ip[20];
+    inet_ntop(AF_INET, &(((struct sockaddr_in*)&newAddress)->sin_addr), ip, 20);
+    printf("New connection incoming IP: %s\n", ip);
+    for (int i = 0; i < MAXIMUM_CONNECTIONS_NUMBER; i++)
+    {
+        if (clients[i] == -1)
+        {
+            printf("New client accepted! IP: %s\n", ip);
+            clients[i] = newConnectionFd;
+            return 0;
+        }
+    }
+    fprintf(stderr, "No room for new connection!\n");
+    close(newConnectionFd);
+}
+
 int handleConnections(int listeningSocket, int* clients)
 {
     int isServerRunning = 1;
@@ -24,7 +45,13 @@ int handleConnections(int listeningSocket, int* clients)
         }
         printf("Waiting for action...\n");
         poll(fdsToPoll, MAXIMUM_CONNECTIONS_NUMBER + 1, -1);
-        return 0; // to be continued here
+
+        if (fdsToPoll[0].revents & POLLIN)
+        {
+            handleNewConnection(listeningSocket, clients);
+        }
+
+        // return 0; // to be continued here
     }
     return 0;
 }
