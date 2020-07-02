@@ -4,6 +4,8 @@
 #include <string.h>
 
 int MAXIMUM_CONNECTIONS_NUMBER = 128;
+int LISTENING_SOCKET_INDEX = 128;
+int USER_INTERACTION_INDEX = 129;
 
 int handleNewConnection(int listeningSocket, int* clients)
 {
@@ -17,7 +19,7 @@ int handleNewConnection(int listeningSocket, int* clients)
     {
         if (clients[i] == -1)
         {
-            printf("New client accepted! IP: %s\n", ip);
+            printf("New client accepted! IP: %s Client id: #%d\n", ip, i);
             clients[i] = newConnectionFd;
             return 0;
         }
@@ -25,7 +27,36 @@ int handleNewConnection(int listeningSocket, int* clients)
     fprintf(stderr, "No room for new connection!\n");
     close(newConnectionFd);
 }
-
+int handleDataFromClients(struct pollfd* polledFds, int* clients)
+{
+    const int bufferSize = 1024 * 32;
+    char buffer[bufferSize];
+    for (int i = 0; i < MAXIMUM_CONNECTIONS_NUMBER; i++)
+    {
+        if (polledFds[i].revents & POLLIN)
+        {
+            bzero(buffer, bufferSize);
+            int readSize = read(polledFds[i].fd, buffer, sizeof(buffer));
+            if (readSize == 0)
+            {
+                printf("Read from client #%d empty. Considered as disconnected\n", i);
+                close(clients[i]);
+                clients[i] = -1;
+            }
+            else
+            {
+                printf("Client #%d wrote:\n%s\n", i, buffer);
+            }
+        }
+        if (polledFds[i].revents & (POLLHUP | POLLERR))
+        {
+            printf("Client #%d disconnected\n", i);
+            close(clients[i]);
+            clients[i] = -1;
+            return 0;
+        }
+    }
+}
 int handleConnections(int listeningSocket, int* clients)
 {
     int isServerRunning = 1;
@@ -35,23 +66,23 @@ int handleConnections(int listeningSocket, int* clients)
         struct pollfd listeningSocketPoll;
         listeningSocketPoll.fd = listeningSocket;
         listeningSocketPoll.events = POLLIN;
-        fdsToPoll[0] = listeningSocketPoll;
+        fdsToPoll[LISTENING_SOCKET_INDEX] = listeningSocketPoll;
         for (int i = 0; i < MAXIMUM_CONNECTIONS_NUMBER; i++)
         {
             struct pollfd clientPoll;
             clientPoll.fd = clients[i];
             clientPoll.events = POLLIN;
-            fdsToPoll[i + 1] = clientPoll;
+            fdsToPoll[i] = clientPoll;
         }
         printf("Waiting for action...\n");
         poll(fdsToPoll, MAXIMUM_CONNECTIONS_NUMBER + 1, -1);
 
-        if (fdsToPoll[0].revents & POLLIN)
+        if (fdsToPoll[LISTENING_SOCKET_INDEX].revents & POLLIN)
         {
             handleNewConnection(listeningSocket, clients);
         }
 
-        // return 0; // to be continued here
+        handleDataFromClients(fdsToPoll, clients);
     }
     return 0;
 }
@@ -107,7 +138,7 @@ int main(int argc, char* argv[])
 
     int clients[MAXIMUM_CONNECTIONS_NUMBER];
     memset(&clients, -1, sizeof(int) * MAXIMUM_CONNECTIONS_NUMBER);
-    handleConnections(listeningSocket, clients);
+    handleConnections(listeningSocket, &clients);
 
     return 0;
 }
