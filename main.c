@@ -2,6 +2,7 @@
 #include <poll.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 int MAXIMUM_CONNECTIONS_NUMBER = 128;
 int LISTENING_SOCKET_INDEX = 128;
@@ -57,16 +58,31 @@ int handleDataFromClients(struct pollfd* polledFds, int* clients)
         }
     }
 }
+int handleUserInput(int* isServerRunning)
+{
+    char buff[1024];
+    read(STDIN_FILENO, buff, sizeof(buff));
+    if (strncmp(buff, "exit", 4) == 0)
+    {
+        *isServerRunning = 0;
+    }
+}
 int handleConnections(int listeningSocket, int* clients)
 {
     int isServerRunning = 1;
     while (isServerRunning == 1)
     {
-        struct pollfd fdsToPoll[MAXIMUM_CONNECTIONS_NUMBER + 1];
+        struct pollfd fdsToPoll[MAXIMUM_CONNECTIONS_NUMBER + 2];
         struct pollfd listeningSocketPoll;
         listeningSocketPoll.fd = listeningSocket;
         listeningSocketPoll.events = POLLIN;
         fdsToPoll[LISTENING_SOCKET_INDEX] = listeningSocketPoll;
+
+        struct pollfd userInteractionPoll;
+        userInteractionPoll.fd = STDIN_FILENO;
+        userInteractionPoll.events = POLLIN;
+        fdsToPoll[USER_INTERACTION_INDEX] = userInteractionPoll;
+
         for (int i = 0; i < MAXIMUM_CONNECTIONS_NUMBER; i++)
         {
             struct pollfd clientPoll;
@@ -75,14 +91,18 @@ int handleConnections(int listeningSocket, int* clients)
             fdsToPoll[i] = clientPoll;
         }
         printf("Waiting for action...\n");
-        poll(fdsToPoll, MAXIMUM_CONNECTIONS_NUMBER + 1, -1);
-
+        poll(fdsToPoll, MAXIMUM_CONNECTIONS_NUMBER + 2, -1);
         if (fdsToPoll[LISTENING_SOCKET_INDEX].revents & POLLIN)
         {
             handleNewConnection(listeningSocket, clients);
         }
 
         handleDataFromClients(fdsToPoll, clients);
+
+        if (fdsToPoll[USER_INTERACTION_INDEX].revents & POLLIN)
+        {
+            handleUserInput(&isServerRunning);
+        }
     }
     return 0;
 }
