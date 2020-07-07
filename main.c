@@ -8,8 +8,12 @@ int MAXIMUM_CONNECTIONS_NUMBER = 128;
 int LISTENING_SOCKET_INDEX = 128;
 int USER_INTERACTION_INDEX = 129;
 
-int printIpAddr(struct sockaddr sockAddr)
+int printRemoteIpAddr(int fd)
 {
+    struct sockaddr_in addr;
+    socklen_t addr_size = sizeof(struct sockaddr_in);
+    struct sockaddr* sockAddr = (struct sockaddr*)&addr;
+    getpeername(fd, sockAddr, &addr_size);
     char ip[20];
     inet_ntop(AF_INET, &(((struct sockaddr_in*)&sockAddr)->sin_addr), ip, 20);
     printf("%s", ip);
@@ -21,15 +25,16 @@ int handleNewConnection(int listeningSocket, int* clients)
     struct sockaddr newAddress;
     socklen_t newAddressLen;
     int newConnectionFd = accept(listeningSocket, &newAddress, &newAddressLen);
+
     printf("New connection incoming IP: ");
-    printIpAddr(newAddress);
+    printRemoteIpAddr(newConnectionFd);
     printf("\n");
     for (int i = 0; i < MAXIMUM_CONNECTIONS_NUMBER; i++)
     {
         if (clients[i] == -1)
         {
             printf("New client accepted! IP: ");
-            printIpAddr(newAddress);
+            printRemoteIpAddr(newConnectionFd);
             printf(" Client id: #%d\n", i);
             clients[i] = newConnectionFd;
             return 0;
@@ -107,12 +112,8 @@ int handleUserInput(int* isServerRunning, int* clients)
             {
                 if (clients[i] != -1)
                 {
-                    struct sockaddr_in addr;
-                    socklen_t addr_size = sizeof(struct sockaddr_in);
-                    struct sockaddr* sockAddr = (struct sockaddr*)&addr;
-                    getpeername(clients[i], sockAddr, &addr_size);
                     printf("Client #%d IP: ", i);
-                    printIpAddr(*sockAddr);
+                    printRemoteIpAddr(clients[i]);
                     printf("\n");
                 }
             }
