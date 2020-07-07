@@ -10,10 +10,9 @@ int USER_INTERACTION_INDEX = 129;
 
 int printRemoteIpAddr(int fd)
 {
-    struct sockaddr_in addr;
-    socklen_t addr_size = sizeof(struct sockaddr_in);
-    struct sockaddr* sockAddr = (struct sockaddr*)&addr;
-    getpeername(fd, sockAddr, &addr_size);
+    socklen_t addr_size;
+    struct sockaddr sockAddr;
+    getpeername(fd, &sockAddr, &addr_size);
     char ip[20];
     inet_ntop(AF_INET, &(((struct sockaddr_in*)&sockAddr)->sin_addr), ip, 20);
     printf("%s", ip);
