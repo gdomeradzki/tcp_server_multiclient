@@ -14,6 +14,7 @@ int printRemoteIpAddr(int fd)
     struct sockaddr sockAddr;
     getpeername(fd, &sockAddr, &addr_size);
     char ip[20];
+    bzero(ip, 20);
     inet_ntop(AF_INET, &(((struct sockaddr_in*)&sockAddr)->sin_addr), ip, 20);
     printf("%s", ip);
     return 0;
@@ -81,8 +82,8 @@ int handleUserInput(int* isServerRunning, int* clients)
     char action;
     int user;
     char text[128];
-
-    sscanf(buffer, "%c %d %s", &action, &user, text);
+    bzero(text, sizeof(text));
+    sscanf(buffer, "%c %d", &action, &user);
     switch (action)
     {
         case 'e':
@@ -94,7 +95,10 @@ int handleUserInput(int* isServerRunning, int* clients)
         {
             if (user >= 0 && user < MAXIMUM_CONNECTIONS_NUMBER && clients[user] != -1)
             {
-                int size = write(clients[user], text, strlen(text));
+                char* spacePlace = strchr(buffer, ' ');
+                spacePlace = strchr(spacePlace + 1, ' ');
+                char* textToClient = spacePlace + 1;
+                int size = write(clients[user], textToClient, strlen(textToClient));
                 printf("%d bytes wrote to client #%d\n", size, user);
                 return 0;
             }
