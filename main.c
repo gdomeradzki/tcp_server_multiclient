@@ -24,20 +24,35 @@ int printTime()
     return 0;
 }
 
+int printRemoteIpAddr(int fd)
+{
+    socklen_t addr_size;
+    struct sockaddr sockAddr;
+    getpeername(fd, &sockAddr, &addr_size);
+    char ip[20];
+    bzero(ip, 20);
+    inet_ntop(AF_INET, &(((struct sockaddr_in*)&sockAddr)->sin_addr), ip, 20);
+    printf("%s", ip);
+    return 0;
+}
+
 int handleNewConnection(int listeningSocket, int* clients)
 {
     struct sockaddr newAddress;
     socklen_t newAddressLen;
     int newConnectionFd = accept(listeningSocket, &newAddress, &newAddressLen);
-    char ip[20];
-    inet_ntop(AF_INET, &(((struct sockaddr_in*)&newAddress)->sin_addr), ip, 20);
+
     printTime();
-    printf("New connection incoming IP: %s\n", ip);
+    printf("New connection incoming IP: ");
+    printRemoteIpAddr(newConnectionFd);
+    printf("\n");
     for (int i = 0; i < MAXIMUM_CONNECTIONS_NUMBER; i++)
     {
         if (clients[i] == -1)
         {
-            printf("New client accepted! IP: %s Client id: #%d\n", ip, i);
+            printf("New client accepted! IP: ");
+            printRemoteIpAddr(newConnectionFd);
+            printf(" Client id: #%d\n", i);
             clients[i] = newConnectionFd;
             return 0;
         }
@@ -78,13 +93,54 @@ int handleDataFromClients(struct pollfd* polledFds, int* clients)
         }
     }
 }
-int handleUserInput(int* isServerRunning)
+int handleUserInput(int* isServerRunning, int* clients)
 {
-    char buff[1024];
-    read(STDIN_FILENO, buff, sizeof(buff));
-    if (strncmp(buff, "exit", 4) == 0)
+    char buffer[1024];
+    bzero(buffer, sizeof(buffer));
+    read(STDIN_FILENO, buffer, sizeof(buffer));
+
+    char action;
+    int user;
+    char text[128];
+    bzero(text, sizeof(text));
+    sscanf(buffer, "%c %d", &action, &user);
+    switch (action)
     {
-        *isServerRunning = 0;
+        case 'e':
+        {
+            *isServerRunning = 0;
+            return 0;
+        }
+        case 'w':
+        {
+            if (user >= 0 && user < MAXIMUM_CONNECTIONS_NUMBER && clients[user] != -1)
+            {
+                char* spacePlace = strchr(buffer, ' ');
+                spacePlace = strchr(spacePlace + 1, ' ');
+                char* textToClient = spacePlace + 1;
+                int size = write(clients[user], textToClient, strlen(textToClient));
+                printf("%d bytes wrote to client #%d\n", size, user);
+                return 0;
+            }
+            else
+            {
+                fprintf(stderr, "Wrong user number or user not connected\n");
+                return 0;
+            }
+        }
+        case 'l':
+        {
+            printf("Active users:\n");
+            for (int i = 0; i < MAXIMUM_CONNECTIONS_NUMBER; i++)
+            {
+                if (clients[i] != -1)
+                {
+                    printf("Client #%d IP: ", i);
+                    printRemoteIpAddr(clients[i]);
+                    printf("\n");
+                }
+            }
+        }
     }
 }
 int handleConnections(int listeningSocket, int* clients)
@@ -110,7 +166,7 @@ int handleConnections(int listeningSocket, int* clients)
             clientPoll.events = POLLIN;
             fdsToPoll[i] = clientPoll;
         }
-        printf("Waiting for action...\n");
+
         poll(fdsToPoll, MAXIMUM_CONNECTIONS_NUMBER + 2, -1);
         if (fdsToPoll[LISTENING_SOCKET_INDEX].revents & POLLIN)
         {
@@ -121,9 +177,10 @@ int handleConnections(int listeningSocket, int* clients)
 
         if (fdsToPoll[USER_INTERACTION_INDEX].revents & POLLIN)
         {
-            handleUserInput(&isServerRunning);
+            handleUserInput(&isServerRunning, clients);
         }
     }
+    close(listeningSocket);
     return 0;
 }
 
@@ -175,7 +232,9 @@ int main(int argc, char* argv[])
     }
     printTime();
     printf("Server is ready to use! Listening port: %d\n", portNumber);
-
+    printf("Waiting for action...\n\tw 1 text - writes \"text\" to user #1\n\tl - list users\n\te - exits "
+           "program "
+           "programm\n");
     int clients[MAXIMUM_CONNECTIONS_NUMBER];
     memset(&clients, -1, sizeof(int) * MAXIMUM_CONNECTIONS_NUMBER);
     handleConnections(listeningSocket, &clients);
