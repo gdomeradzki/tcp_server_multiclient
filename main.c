@@ -233,8 +233,7 @@ int main(int argc, char* argv[])
     printTime();
     printf("Server is ready to use! Listening port: %d\n", portNumber);
     printf("Waiting for action...\n\tw 1 text - writes \"text\" to user #1\n\tl - list users\n\te - exits "
-           "program "
-           "programm\n");
+           "program\n");
     int clients[MAXIMUM_CONNECTIONS_NUMBER];
     memset(&clients, -1, sizeof(int) * MAXIMUM_CONNECTIONS_NUMBER);
     handleConnections(listeningSocket, &clients);
