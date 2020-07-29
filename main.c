@@ -2,11 +2,27 @@
 #include <poll.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 int MAXIMUM_CONNECTIONS_NUMBER = 128;
 int LISTENING_SOCKET_INDEX = 128;
 int USER_INTERACTION_INDEX = 129;
+
+int printTime()
+{
+    time_t t = time(NULL);
+    struct tm tm = *localtime(&t);
+    printf(
+        "Action time: %d-%02d-%02d %02d:%02d:%02d\n",
+        tm.tm_year + 1900,
+        tm.tm_mon + 1,
+        tm.tm_mday,
+        tm.tm_hour,
+        tm.tm_min,
+        tm.tm_sec);
+    return 0;
+}
 
 int handleNewConnection(int listeningSocket, int* clients)
 {
@@ -15,6 +31,7 @@ int handleNewConnection(int listeningSocket, int* clients)
     int newConnectionFd = accept(listeningSocket, &newAddress, &newAddressLen);
     char ip[20];
     inet_ntop(AF_INET, &(((struct sockaddr_in*)&newAddress)->sin_addr), ip, 20);
+    printTime();
     printf("New connection incoming IP: %s\n", ip);
     for (int i = 0; i < MAXIMUM_CONNECTIONS_NUMBER; i++)
     {
@@ -40,17 +57,20 @@ int handleDataFromClients(struct pollfd* polledFds, int* clients)
             int readSize = read(polledFds[i].fd, buffer, sizeof(buffer));
             if (readSize == 0)
             {
+                printTime();
                 printf("Read from client #%d empty. Considered as disconnected\n", i);
                 close(clients[i]);
                 clients[i] = -1;
             }
             else
             {
+                printTime();
                 printf("Client #%d wrote:\n%s\n", i, buffer);
             }
         }
         if (polledFds[i].revents & (POLLHUP | POLLERR))
         {
+            printTime();
             printf("Client #%d disconnected\n", i);
             close(clients[i]);
             clients[i] = -1;
@@ -153,7 +173,7 @@ int main(int argc, char* argv[])
         fprintf(stderr, "Unable to listen, check if port is free.\n");
         return 0;
     }
-
+    printTime();
     printf("Server is ready to use! Listening port: %d\n", portNumber);
 
     int clients[MAXIMUM_CONNECTIONS_NUMBER];
